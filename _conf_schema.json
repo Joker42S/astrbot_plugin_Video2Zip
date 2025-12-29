@@ -1,0 +1,46 @@
+{
+  "debug_mode": {
+    "description": "调试模式",
+    "type": "bool",
+    "hint": "调试模式",
+    "default": false
+  },
+  "whilelist_enable": {
+      "description": "开启白名单",
+      "type": "bool",
+      "hint": "只转发白名单内的QQ号消息",
+      "default": true
+  },  
+  "whitelist": {
+      "description": "受信任的QQ号白名单",
+      "type": "list",
+      "hint": "受信任的QQ号白名单",
+      "default": [],
+      "required": true
+  },
+  "target_qq": {
+    "description": "目标 QQ 群号",
+    "type": "string",
+    "hint": "目标 QQ 群号",
+    "default": "",
+    "required": true
+  },
+  "debug_whitelist": {
+      "description": "调试用受信任的QQ号白名单",
+      "type": "list",
+      "hint": "调试用受信任的QQ号白名单",
+      "default": []
+  },
+  "debug_target_qq": {
+    "description": "调试用 QQ 群号",
+    "type": "string",
+    "hint": "调试用 QQ 群号",
+    "default": ""
+  },
+  "zip_password": {
+    "description": "压缩文件密码",
+    "type": "string",
+    "hint": "打包zip文件时使用的密码，如果为空则不加密",
+    "default": ""
+  }
+}

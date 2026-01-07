@@ -286,7 +286,7 @@ async def _image_obfus(img_data):
                     pixels[x, y] = (new_r, new_g, new_b)
 
                 with BytesIO() as output:
-                    img.save(output, format="PNG")
+                    img.save(output, format="JPEG", quality=95, subsampling=0)
                     return output.getvalue()
 
     except Exception as e:

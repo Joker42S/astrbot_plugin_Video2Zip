@@ -113,10 +113,13 @@ class Video2Zip(Star):
             file_name = f"{file_name}.zip"
             zip_file_path = self.temp_dir / file_name
             await self._compress_file(zip_file_path, src_file_path, self.zip_password)
+            logger.debug(f"打包完成，路径：{zip_file_path}")
             forward_message1.chain.append(File(file = str(zip_file_path), name = file_name))
             forward_message2.chain.append(Plain("压缩包来自："))
             forward_message2.chain.append(At(qq = sender_qq))
+            logger.debug(f"准备截图。")
             preview_image_paths = await self._capture_video_preview(src_file_path)
+            logger.debug(f"截图完成。")
             if len(preview_image_paths) > 0:
                 logger.info(f"视频预览图路径：{preview_image_paths}")
                 forward_message3.chain.append(Plain("视频预览："))
@@ -145,21 +148,25 @@ class Video2Zip(Star):
         new_image_path = str(self.temp_dir / image_name)
         async with aiofiles.open(image_path, 'rb') as f:
             img_data = await f.read()
-        img_data = await _image_obfus(img_data)
-        async with aiofiles.open(new_image_path, 'wb') as f:
-            await f.write(img_data)
-        node = Node(
-            uin = sender_qq,
-            name = sender_name,
-            content = [Image.fromFileSystem(new_image_path)]
-        )
-        forward_message = MessageChain()
-        forward_message.chain.append(node)
-        try:
-            await self.context.send_message(f"aiocqhttp:GroupMessage:{self.target_qq}",forward_message)
-        except Exception as e:
-            logger.error(f"发送失败: {e}")
-            yield event.plain_result(f"图片太涩了，机器人也发不出来喵！({image_name})")
+        for i in range(3):
+            img_data = await _image_obfus(img_data)
+            async with aiofiles.open(new_image_path, 'wb') as f:
+                await f.write(img_data)
+            node = Node(
+                uin = sender_qq,
+                name = sender_name,
+                content = [Image.fromFileSystem(new_image_path)]
+            )
+            forward_message = MessageChain()
+            forward_message.chain.append(node)
+            try:
+                await self.context.send_message(f"aiocqhttp:GroupMessage:{self.target_qq}",forward_message)
+                #转发成功
+                return
+            except Exception as e:
+                pass
+        #转发失败
+        yield event.plain_result(f"图片太涩了，机器人也发不出来喵！({image_name})")
 
     async def _compress_file(self, zip_file_path, src_file_path: str, zip_password: str = ""):
         """压缩文件"""

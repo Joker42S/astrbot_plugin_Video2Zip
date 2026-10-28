@@ -38,7 +38,7 @@ class Video2Zip(Star):
             self.zip_password = self.config.get("zip_password")
 
             # 检查配置是否完整
-            if not self.whitelist or not self.target_qq or self.whitelist.count == 0:
+            if not self.whitelist or not self.target_qq or len(self.whitelist) == 0:
                 logger.warning("TG2QQ插件配置不完整，请检查source_tg和target_qq配置")
 
             logger.info("插件初始化完成")
@@ -81,11 +81,14 @@ class Video2Zip(Star):
                 if self.debug_mode:
                     logger.info(f"Debug MSG: {msg}")
                 if isinstance(msg, Video):
-                    src_file_path = msg.path
-                    file_name = msg.file
-                    if not Path(src_file_path).is_file():
-                        yield event.plain_result("开始下载视频")
-                        await self._download_qq_video(event, file_name)
+                    yield event.plain_result("开始下载视频")
+                    try:
+                        src_file_path = await msg.convert_to_file_path()
+                    except Exception as e:
+                        logger.error(f"视频下载失败: {e}")
+                        yield event.plain_result(f"视频下载失败: {e}，请联系管理员")
+                        return
+                    file_name = Path(src_file_path).name or msg.file
                     break
                 elif isinstance(msg, File):
                     yield event.plain_result("开始下载文件")
@@ -127,10 +130,11 @@ class Video2Zip(Star):
                     forward_message3.chain.append(Image.fromFileSystem(preview_image_path))
             # 发送压缩后的文件到目标QQ群
             yield event.plain_result(f"正在打包发送，请稍等")
+            session = f"aiocqhttp:GroupMessage:{self.target_qq}"
             try:
-                await self.context.send_message(f"aiocqhttp:GroupMessage:{self.target_qq}",forward_message1)
-                await self.context.send_message(f"aiocqhttp:GroupMessage:{self.target_qq}",forward_message2)
-                await self.context.send_message(f"aiocqhttp:GroupMessage:{self.target_qq}",forward_message3)
+                await self._send_with_retry(session, forward_message1)
+                await self._send_with_retry(session, forward_message2)
+                await self._send_with_retry(session, forward_message3)
             except Exception as e:
                 logger.error(f"发送失败: {e}")
                 yield event.plain_result(f"发送失败: {e}，请联系管理员")
@@ -168,6 +172,21 @@ class Video2Zip(Star):
         #转发失败
         yield event.plain_result(f"图片太涩了，机器人也发不出来喵！({image_name})")
 
+    async def _send_with_retry(self, session, message_chain, max_attempts=3, base_delay=3):
+        """发送消息，失败时按退避间隔重试（应对协议端 -1002 等瞬时错误）"""
+        last_exc = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                await self.context.send_message(session, message_chain)
+                return
+            except Exception as e:
+                last_exc = e
+                if attempt < max_attempts:
+                    delay = base_delay * attempt
+                    logger.warning(f"发送失败（第{attempt}/{max_attempts}次）: {e}，{delay}秒后重试")
+                    await asyncio.sleep(delay)
+        raise last_exc
+
     async def _compress_file(self, zip_file_path, src_file_path: str, zip_password: str = ""):
         """压缩文件"""
         if self.debug_mode:
@@ -178,14 +197,6 @@ class Video2Zip(Star):
                     zipf.setpassword(zip_password.encode('utf-8'))
                 zipf.write(src_file_path, arcname = os.path.basename(src_file_path))
         await asyncio.to_thread(sync_zip_creation)
-
-    async def _download_qq_video(self, event, file_name):
-        client = event.bot  # 得到 client
-        payloads = {
-            "file": file_name
-        }
-        ret = await client.api.call_action('get_file', **payloads)  # 调用 协议端  API
-        return ret
 
     async def _capture_video_preview(self, video_path):
         file_name = Path(video_path).name
